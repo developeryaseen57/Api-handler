@@ -66,7 +66,7 @@ async function updateOrder(req, res) {
     const order = await Order.findByIdAndUpdate(
       id,
       { product, amount, status },
-      { new: true, runValidators: true }
+      { new: true }
     ).populate('userId', 'name email');
     
     if (!order) {

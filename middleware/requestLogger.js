@@ -11,7 +11,6 @@ async function requestLogger(req, res, next) {
  
   const originalJson = res.json.bind(res)
 
-  // replace it with your own
   res.json = async function (body) {
     const duration = Date.now() - start
     const status = res.statusCode;

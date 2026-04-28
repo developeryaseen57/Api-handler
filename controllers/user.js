@@ -29,7 +29,7 @@ async function updateUser(req, res) {
     const user = await User.findByIdAndUpdate(
       id,
       { name, role },
-      { new: true, runValidators: true }
+      { new: true }
     );
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
