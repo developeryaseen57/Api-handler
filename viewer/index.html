@@ -400,7 +400,6 @@
     try {
       const res = await fetch('/logs');
       logs = await res.json();
-      // Backend already sorts by newest first with .sort({ timestamp: -1 })
       updateStats();
       render();
     } catch (e) {
