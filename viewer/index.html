@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>API Watcher</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: monospace; display: flex; height: 100vh; background: #0f0f0f; color: #e0e0e0; }
+
+    /* LEFT PANEL */
+    #list { width: 380px; border-right: 1px solid #222; overflow-y: auto; }
+    #list h2 { padding: 16px; font-size: 13px; color: #888; border-bottom: 1px solid #222; }
+    .item { padding: 12px 16px; border-bottom: 1px solid #1a1a1a; cursor: pointer; }
+    .item:hover { background: #1a1a1a; }
+    .item.active { background: #1e1e2e; border-left: 3px solid #7c6af7; }
+    .item.error { border-left: 3px solid #f87171; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px; }
+    .s2 { background: #14532d; color: #4ade80; }
+    .s4 { background: #7c2d12; color: #fb923c; }
+    .s5 { background: #450a0a; color: #f87171; }
+    .method { color: #7c6af7; font-size: 12px; margin-right: 6px; }
+    .url { font-size: 12px; }
+    .time { font-size: 11px; color: #555; margin-top: 4px; }
+    .tag { font-size: 10px; color: #f87171; margin-left: 6px; }
+
+    /* RIGHT PANEL */
+    #detail { flex: 1; padding: 24px; overflow-y: auto; }
+    #detail h2 { font-size: 13px; color: #888; margin-bottom: 16px; }
+    .section { margin-bottom: 20px; }
+    .section label { font-size: 11px; color: #666; display: block; margin-bottom: 6px; }
+    pre { background: #1a1a1a; padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; }
+    .stack { color: #f87171; }
+    .empty { color: #444; font-size: 13px; margin-top: 40px; text-align: center; }
+    .fbtn { background: #1a1a1a; color: #888; border: 1px solid #333; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px; }
+   .fbtn.active { background: #1e1e2e; color: #7c6af7; border-color: #7c6af7; }
+   .fbtn.danger { color: #f87171; border-color: #f87171; }
+  </style>
+</head>
+<body>
+
+<div id="list">
+  <h2>CAPTURED REQUESTS</h2>
+
+  <div style="padding: 10px 16px; display:flex; gap:8px; border-bottom: 1px solid #222;">
+    <button onclick="setFilter('all')"      id="f-all"     class="fbtn active">All</button>
+    <button onclick="setFilter('request')"  id="f-request" class="fbtn">Requests</button>
+    <button onclick="setFilter('error')"    id="f-error"   class="fbtn">Errors</button>
+    <button onclick="clearLogs()"                          class="fbtn danger">Clear</button>
+  </div>
+
+  <div id="items"></div>
+</div>
+
+<div id="detail">
+  <p class="empty">← Select a request to view details</p>
+</div>
+
+<script>
+  let logs = [];
+  let currentFilter = 'all';
+
+  async function load() {
+    const res = await fetch('/logs');
+    logs = await res.json();
+    logs.reverse();
+    render();
+  }
+
+  function setFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+    document.getElementById('f-' + filter)?.classList.add('active');
+    render();
+  }
+
+  function render() {
+    const filtered = logs.filter(s =>
+      currentFilter === 'all' ? true : s.type === currentFilter
+    );
+
+    const container = document.getElementById('items');
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<p class="empty">No entries found</p>';
+      return;
+    }
+
+    container.innerHTML = filtered.map((s, i) => `
+      <div class="item ${s.type === 'error' ? 'error' : ''}" onclick="showDetail(${i})">
+        <div>
+          <span class="badge ${statusClass(s.status)}">${s.status}</span>
+          <span class="method">${s.method}</span>
+          <span class="url">${s.url}</span>
+          ${s.type === 'error' ? '<span class="tag">ERROR</span>' : ''}
+        </div>
+        <div class="time">${s.duration} &nbsp;·&nbsp; ${formatTime(s.timestamp)}</div>
+      </div>
+    `).join('');
+  }
+
+  function showDetail(i) {
+    const filtered = logs.filter(s =>
+      currentFilter === 'all' ? true : s.type === currentFilter
+    );
+    const s = filtered[i];
+
+    document.querySelectorAll('.item').forEach((el, idx) => {
+      el.classList.toggle('active', idx === i);
+    });
+
+    document.getElementById('detail').innerHTML = `
+      <h2>REQUEST DETAIL</h2>
+
+      <div class="section">
+        <label>METHOD & URL</label>
+        <pre>${s.method} ${s.url}</pre>
+      </div>
+
+      <div class="section">
+        <label>STATUS & DURATION</label>
+        <pre>${s.status} · ${s.duration}</pre>
+      </div>
+
+      <div class="section">
+        <label>TIMESTAMP</label>
+        <pre>${s.timestamp}</pre>
+      </div>
+
+      <div class="section">
+        <label>REQUEST BODY</label>
+        <pre>${JSON.stringify(s.requestBody, null, 2) || 'empty'}</pre>
+      </div>
+
+      <div class="section">
+        <label>RESPONSE BODY</label>
+        <pre>${JSON.stringify(s.responseBody, null, 2)}</pre>
+      </div>
+
+      ${s.type === 'error' ? `
+      <div class="section">
+        <label>ERROR STACK</label>
+        <pre class="stack">${s.errorStack}</pre>
+      </div>` : ''}
+    `;
+  }
+
+  async function clearLogs() {
+    await fetch('/logs', { method: 'DELETE' });
+    logs = [];
+    document.getElementById('detail').innerHTML = '<p class="empty">← Select a request to view details</p>';
+    render();
+  }
+
+  function statusClass(s) {
+    if (s >= 500) return 's5';
+    if (s >= 400) return 's4';
+    return 's2';
+  }
+
+  function formatTime(ts) {
+    return new Date(ts).toLocaleTimeString();
+  }
+
+  // auto refresh every 5 seconds
+  load();
+  // setInterval(load, 5000);
+</script>
+</body>
+</html>
